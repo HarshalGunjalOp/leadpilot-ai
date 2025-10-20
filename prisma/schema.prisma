@@ -1,0 +1,207 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Organizations are synced from Clerk
+model Organization {
+  id        String   @id @default(cuid())
+  clerkId   String   @unique
+  name      String
+  slug      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  memberships      Membership[]
+  subscription     Subscription?
+  creditUsage      LeadCreditUsage[]
+  icps             ICP[]
+  leads            Lead[]
+  sequences        Sequence[]
+  contactRequests  ContactRequest[]
+  auditLogs        AuditLog[]
+
+  @@index([clerkId])
+}
+
+// Organization membership (synced from Clerk)
+model Membership {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  role           String   @default("member") // owner, admin, member
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, userId])
+  @@index([userId])
+  @@index([organizationId])
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO_MONTHLY
+  PRO_YEARLY
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  PAST_DUE
+  TRIALING
+  UNPAID
+}
+
+model Subscription {
+  id               String             @id @default(cuid())
+  organizationId   String             @unique
+  stripeCustomerId String             @unique
+  stripeSubId      String?            @unique
+  plan             SubscriptionPlan   @default(FREE)
+  status           SubscriptionStatus @default(ACTIVE)
+  currentPeriodEnd DateTime?
+  cancelAtPeriodEnd Boolean           @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+  @@index([stripeSubId])
+}
+
+model LeadCreditUsage {
+  id             String   @id @default(cuid())
+  organizationId String
+  month          String   // Format: YYYY-MM
+  used           Int      @default(0)
+  lifetimeUsed   Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, month])
+  @@index([organizationId])
+}
+
+model ICP {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  filters        Json     // { industries: [], companySize: [], techStack: [], roles: [], geo: [] }
+  createdBy      String   // Clerk user ID
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  leads        Lead[]
+
+  @@index([organizationId])
+  @@index([createdBy])
+}
+
+model Lead {
+  id               String   @id @default(cuid())
+  organizationId   String
+  icpId            String
+  companyName      String
+  website          String?
+  domain           String
+  industry         String?
+  companySize      String?
+  role             String?
+  contactName      String?
+  email            String?
+  linkedinUrl      String?
+  techStack        Json?    // { technologies: ["Next.js", "Stripe"] }
+  signals          Json?    // { pains: [], initiatives: [] }
+  aiScore          Int      @default(0) // 1-5
+  personalization  String?  @db.Text
+  status           String   @default("new") // new, contacted, qualified, converted
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  icp          ICP          @relation(fields: [icpId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([icpId])
+  @@index([domain])
+  @@index([createdAt])
+}
+
+model Sequence {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  description    String?
+  steps          Json     // [{ type: "email" | "linkedin", day: 1, subject: "", body: "", variables: {} }]
+  versions       Json?    // Version history
+  isActive       Boolean  @default(true)
+  createdBy      String   // Clerk user ID
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([createdBy])
+}
+
+enum ContactRequestStatus {
+  PENDING
+  CONTACTED
+  QUALIFIED
+  CLOSED
+}
+
+model ContactRequest {
+  id             String               @id @default(cuid())
+  organizationId String
+  name           String
+  email          String
+  company        String?
+  message        String               @db.Text
+  status         ContactRequestStatus @default(PENDING)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  actorId        String   // Clerk user ID
+  action         String   // created_icp, generated_leads, exported_csv, upgraded_plan, etc.
+  entity         String   // icp, lead, sequence, subscription
+  entityId       String?
+  meta           Json?    // Additional context
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([actorId])
+  @@index([createdAt])
+}
