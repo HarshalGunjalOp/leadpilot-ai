@@ -37,6 +37,27 @@ export function getCurrentMonth(): string {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
 }
 
+export function getBaseUrl(): string {
+  // Auto-detect URL based on environment
+  if (typeof window !== 'undefined') {
+    // Client-side: use window.location
+    return window.location.origin;
+  }
+  
+  // Server-side
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  
+  // Vercel deployment
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  // Local development
+  return 'http://localhost:3000';
+}
+
 export function parseVariables(
   template: string,
   variables: Record<string, string>
