@@ -5,6 +5,7 @@ import prisma from "@/lib/prisma";
 import { authOrg, logAudit, withTransaction } from "@/lib/auth-helpers";
 import { canGenerateLeads, getCurrentMonth } from "@/lib/utils";
 import { getPlanConfig } from "@/config/plans";
+import type { Lead } from "@prisma/client";
 import {
   scrapeWebsite,
   extractDomain,
@@ -262,7 +263,7 @@ export async function exportLeadsCSV(leadIds: string[]) {
     "Personalization",
   ];
 
-  const rows = leads.map((lead) => [
+  const rows = leads.map((lead: Lead) => [
     lead.companyName,
     lead.website || "",
     lead.domain,
@@ -277,8 +278,8 @@ export async function exportLeadsCSV(leadIds: string[]) {
 
   const csv = [
     headers.join(","),
-    ...rows.map((row) =>
-      row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")
+    ...rows.map((row: string[]) =>
+      row.map((cell: string) => `"${cell.replace(/"/g, '""')}"`).join(",")
     ),
   ].join("\n");
 

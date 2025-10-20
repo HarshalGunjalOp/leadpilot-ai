@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Link from "next/link";
 import { Plus } from "lucide-react";
+import type { Lead } from "@prisma/client";
 
 export default async function LeadsPage() {
   const { organization } = await authOrg();
@@ -59,7 +60,7 @@ export default async function LeadsPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {leads.map((lead) => (
+              {leads.map((lead: Lead) => (
                 <div
                   key={lead.id}
                   className="flex items-center justify-between rounded-lg border p-4"
