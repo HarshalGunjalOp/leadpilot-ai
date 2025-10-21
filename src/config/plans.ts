@@ -1,4 +1,5 @@
-import { SubscriptionPlan } from "@prisma/client";
+// Define SubscriptionPlan type locally to avoid Prisma import issues
+type SubscriptionPlan = "FREE" | "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE";
 
 export const PLANS = {
   FREE: {
@@ -6,7 +7,7 @@ export const PLANS = {
     plan: "FREE" as SubscriptionPlan,
     price: 0,
     limits: {
-      leadsPerMonth: 0,
+      leadsPerMonth: -1, // No monthly limit for free (only lifetime)
       leadsLifetime: 5,
     },
     features: [
@@ -99,7 +100,7 @@ export const canGenerateLeads = (
 ): { allowed: boolean; reason?: string } => {
   const config = getPlanConfig(plan);
 
-  // Check lifetime limit (for FREE plan)
+  // Check lifetime limit first (important for FREE plan)
   if (
     config.limits.leadsLifetime !== -1 &&
     lifetimeUsed >= config.limits.leadsLifetime

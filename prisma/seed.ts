@@ -1,22 +1,22 @@
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import prisma from "../src/lib/prisma";
 
 async function main() {
   console.log("🌱 Starting seed...");
+  console.log("⚠️  WARNING: This will create DEMO DATA ONLY for testing");
+  console.log("⚠️  This should NOT affect your real user account");
 
-  // Create demo organization
+  // Create demo organization (SEPARATE from real users)
   const org = await prisma.organization.upsert({
-    where: { clerkId: "demo_org_123" },
+    where: { clerkId: "demo_org_clerk_id_12345" },
     update: {},
     create: {
-      clerkId: "demo_org_123",
-      name: "Demo Company",
-      slug: "demo-company",
+      clerkId: "demo_org_clerk_id_12345",
+      name: "Demo Company (Seed Data)",
+      slug: "demo-company-seed",
     },
   });
 
-  console.log("✅ Created organization:", org.name);
+  console.log("✅ Created DEMO organization:", org.name);
 
   // Create subscription
   const subscription = await prisma.subscription.upsert({
@@ -36,9 +36,9 @@ async function main() {
   const icp = await prisma.iCP.create({
     data: {
       organizationId: org.id,
-      name: "B2B SaaS Companies",
+      name: "B2B SaaS Companies (DEMO)",
       description: "Growing SaaS companies in North America",
-      createdBy: "demo_user_123",
+      createdBy: "demo_user_seed_12345",
       filters: {
         industries: ["Software", "SaaS", "Technology"],
         companySize: ["10-50", "50-200"],
@@ -49,7 +49,7 @@ async function main() {
     },
   });
 
-  console.log("✅ Created ICP:", icp.name);
+  console.log("✅ Created DEMO ICP:", icp.name);
 
   // Create demo leads
   const demoLeads = [
@@ -166,9 +166,9 @@ async function main() {
   const sequence = await prisma.sequence.create({
     data: {
       organizationId: org.id,
-      name: "Cold Outreach - SaaS",
+      name: "Cold Outreach - SaaS (DEMO)",
       description: "Standard cold outreach sequence for SaaS companies",
-      createdBy: "demo_user_123",
+      createdBy: "demo_user_seed_12345",
       steps: [
         {
           type: "email",
@@ -192,9 +192,9 @@ async function main() {
     },
   });
 
-  console.log("✅ Created sequence:", sequence.name);
+  console.log("✅ Created DEMO sequence:", sequence.name);
 
-  // Initialize credit usage
+  // Initialize credit usage FOR DEMO ORG ONLY
   const currentMonth = new Date().toISOString().substring(0, 7);
   await prisma.leadCreditUsage.create({
     data: {
@@ -205,13 +205,13 @@ async function main() {
     },
   });
 
-  console.log("✅ Initialized credit usage");
+  console.log("✅ Initialized DEMO credit usage (does NOT affect real users)");
 
   // Create audit log
   await prisma.auditLog.create({
     data: {
       organizationId: org.id,
-      actorId: "demo_user_123",
+      actorId: "demo_user_seed_12345",
       action: "seeded_data",
       entity: "system",
       meta: {

@@ -1,7 +1,11 @@
 import { auth } from "@clerk/nextjs/server";
 import prisma from "@/lib/prisma";
-import type { Prisma } from "@prisma/client";
-import { SubscriptionPlan } from "@prisma/client";
+
+// Define the subscription plan type locally
+type SubscriptionPlan = "FREE" | "PRO_MONTHLY" | "PRO_YEARLY" | "ENTERPRISE";
+
+// Prisma transaction client type
+type PrismaTransactionClient = Parameters<Parameters<typeof prisma.$transaction>[0]>[0];
 
 export class AuthError extends Error {
   constructor(message: string) {
@@ -19,6 +23,7 @@ export class PlanError extends Error {
 
 /**
  * Get authenticated user and their active organization
+ * For personal accounts (no orgId), we use userId as the organization identifier
  */
 export async function authOrg() {
   const { userId, orgId } = auth();
@@ -27,26 +32,25 @@ export async function authOrg() {
     throw new AuthError("Unauthorized - Please sign in");
   }
 
-  if (!orgId) {
-    throw new AuthError("No organization selected");
-  }
+  // Use orgId if available (team/org account), otherwise use userId (personal account)
+  const effectiveOrgId = orgId || userId;
 
-  const organization = await prisma.organization.findUnique({
-    where: { clerkId: orgId },
+  let organization = await prisma.organization.findUnique({
+    where: { clerkId: effectiveOrgId },
     include: {
       subscription: true,
     },
   });
 
   if (!organization) {
-    // Create organization if it doesn't exist
-    const newOrg = await prisma.organization.create({
+    // Create organization if it doesn't exist (for both personal and org accounts)
+    organization = await prisma.organization.create({
       data: {
-        clerkId: orgId,
-        name: "My Organization",
+        clerkId: effectiveOrgId,
+        name: orgId ? "My Organization" : "Personal Account",
         subscription: {
           create: {
-            stripeCustomerId: `temp_${orgId}`,
+            stripeCustomerId: `temp_${effectiveOrgId}`,
             plan: "FREE",
             status: "ACTIVE",
           },
@@ -56,10 +60,9 @@ export async function authOrg() {
         subscription: true,
       },
     });
-    return { userId, orgId, organization: newOrg };
   }
 
-  return { userId, orgId, organization };
+  return { userId, orgId: effectiveOrgId, organization };
 }
 
 /**
@@ -78,7 +81,8 @@ export async function requirePlan(
     ENTERPRISE: 2,
   };
 
-  const userPlanLevel = planHierarchy[organization.subscription?.plan || "FREE"];
+  const currentPlan = (organization.subscription?.plan || "FREE") as SubscriptionPlan;
+  const userPlanLevel = planHierarchy[currentPlan];
   const requiredLevel = planHierarchy[minPlan];
 
   if (userPlanLevel < requiredLevel) {
@@ -111,7 +115,7 @@ export async function logAudit(params: {
  * Execute a function within a Prisma transaction
  */
 export async function withTransaction<T>(
-  callback: (tx: Prisma.TransactionClient) => Promise<T>
+  callback: (tx: PrismaTransactionClient) => Promise<T>
 ): Promise<T> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return await prisma.$transaction(async (tx: any) => {
